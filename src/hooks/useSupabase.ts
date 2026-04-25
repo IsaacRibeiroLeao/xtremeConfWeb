@@ -140,7 +140,9 @@ export function useOrders() {
         ...o,
         customerName: o.customer_name,
         bingoEntries: o.bingo_entries || [],
-        createdAt: new Date(o.created_at)
+        createdAt: new Date(o.created_at),
+        paymentMethod: o.payment_method,
+        receiptImage: o.receipt_image
       })))
     }
     setLoading(false)
@@ -158,7 +160,9 @@ export function useOrders() {
       total: order.total,
       customer_name: order.customerName || null,
       bingo_entries: order.bingoEntries,
-      status: order.status
+      status: order.status,
+      payment_method: order.paymentMethod || null,
+      receipt_image: order.receiptImage || null
     })
     if (error) throw error
     fetchOrders()
@@ -171,6 +175,8 @@ export function useOrders() {
     if (data.customerName !== undefined) updateData.customer_name = data.customerName
     if (data.bingoEntries !== undefined) updateData.bingo_entries = data.bingoEntries
     if (data.status !== undefined) updateData.status = data.status
+    if (data.paymentMethod !== undefined) updateData.payment_method = data.paymentMethod
+    if (data.receiptImage !== undefined) updateData.receipt_image = data.receiptImage
 
     const { error } = await supabase.from('orders').update(updateData).eq('id', id)
     if (error) throw error

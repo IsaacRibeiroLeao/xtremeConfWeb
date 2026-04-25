@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react'
-import { ShoppingCart, Trash2, Check } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { ShoppingCart, Trash2, Check, Camera, CreditCard, Banknote, Smartphone, X, Image, Loader2 } from 'lucide-react'
 import { useDishes, useCategories, useOrders, useBingo } from '../hooks/useSupabase'
-import type { OrderItem } from '../types'
+import { uploadReceiptImage, base64ToBlob } from '../lib/supabase'
+import type { OrderItem, PaymentMethod } from '../types'
 
 export default function Orders() {
   const { dishes } = useDishes()
@@ -15,6 +16,94 @@ export default function Orders() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
   const [lastAdded, setLastAdded] = useState<string | null>(null)
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash')
+  const [receiptImage, setReceiptImage] = useState<string | null>(null)
+  const [receiptPreview, setReceiptPreview] = useState<string | null>(null)
+  const [uploadingReceipt, setUploadingReceipt] = useState(false)
+  const [showCamera, setShowCamera] = useState(false)
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const paymentMethods: { value: PaymentMethod; label: string; icon: typeof Banknote }[] = [
+    { value: 'cash', label: 'Dinheiro', icon: Banknote },
+    { value: 'pix', label: 'PIX', icon: Smartphone },
+    { value: 'credit', label: 'Crédito', icon: CreditCard },
+    { value: 'debit', label: 'Débito', icon: CreditCard },
+  ]
+
+  // Camera functions
+  const startCamera = async () => {
+    setShowCamera(true)
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: 'environment' } 
+      })
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream
+      }
+    } catch (err) {
+      console.error('Error accessing camera:', err)
+      alert('Não foi possível acessar a câmera')
+      setShowCamera(false)
+    }
+  }
+
+  const stopCamera = () => {
+    if (videoRef.current?.srcObject) {
+      const stream = videoRef.current.srcObject as MediaStream
+      stream.getTracks().forEach(track => track.stop())
+    }
+    setShowCamera(false)
+  }
+
+  const capturePhoto = async () => {
+    if (videoRef.current) {
+      const canvas = document.createElement('canvas')
+      canvas.width = videoRef.current.videoWidth
+      canvas.height = videoRef.current.videoHeight
+      const ctx = canvas.getContext('2d')
+      if (ctx) {
+        ctx.drawImage(videoRef.current, 0, 0)
+        const imageData = canvas.toDataURL('image/jpeg', 0.7)
+        setReceiptPreview(imageData)
+        stopCamera()
+        
+        // Upload to Supabase Storage
+        setUploadingReceipt(true)
+        const blob = base64ToBlob(imageData)
+        const url = await uploadReceiptImage(blob)
+        if (url) {
+          setReceiptImage(url)
+        }
+        setUploadingReceipt(false)
+      }
+    }
+  }
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      // Show preview immediately
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setReceiptPreview(reader.result as string)
+      }
+      reader.readAsDataURL(file)
+      
+      // Upload to Supabase Storage
+      setUploadingReceipt(true)
+      const url = await uploadReceiptImage(file)
+      if (url) {
+        setReceiptImage(url)
+      }
+      setUploadingReceipt(false)
+    }
+  }
+
+  const removeReceiptImage = () => {
+    setReceiptImage(null)
+    setReceiptPreview(null)
+  }
 
   // Vibração de feedback (mobile)
   const vibrate = () => {
@@ -114,7 +203,9 @@ export default function Orders() {
         total,
         customerName: customerName.trim() || undefined,
         bingoEntries: bingoNames,
-        status: 'completed'
+        status: 'completed',
+        paymentMethod,
+        receiptImage: receiptImage || undefined
       })
 
       if (bingoNames.length > 0) {
@@ -123,6 +214,9 @@ export default function Orders() {
 
       setCart([])
       setCustomerName('')
+      setPaymentMethod('cash')
+      setReceiptImage(null)
+      setReceiptPreview(null)
       playSound()
       setShowSuccess(true)
       setTimeout(() => setShowSuccess(false), 2000)
@@ -333,6 +427,77 @@ export default function Orders() {
                   </div>
                 )}
 
+                {/* Payment Method */}
+                <div className="mt-4 p-4 bg-xtreme-black/30 rounded-lg border border-xtreme-cream/10">
+                  <p className="text-sm font-bold text-xtreme-cream mb-3">💳 Forma de Pagamento</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {paymentMethods.map(({ value, label, icon: Icon }) => (
+                      <button
+                        key={value}
+                        onClick={() => setPaymentMethod(value)}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                          paymentMethod === value
+                            ? 'bg-xtreme-orange text-xtreme-black'
+                            : 'bg-xtreme-black/50 text-xtreme-cream/70 border border-xtreme-cream/20'
+                        }`}
+                      >
+                        <Icon size={16} />
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Receipt Image */}
+                <div className="mt-4 p-4 bg-xtreme-black/30 rounded-lg border border-xtreme-cream/10">
+                  <p className="text-sm font-bold text-xtreme-cream mb-3">📷 Comprovante (opcional)</p>
+                  
+                  {receiptPreview || receiptImage ? (
+                    <div className="relative">
+                      <img 
+                        src={receiptPreview || receiptImage || ''} 
+                        alt="Comprovante" 
+                        className="w-full h-32 object-cover rounded-lg"
+                      />
+                      {uploadingReceipt && (
+                        <div className="absolute inset-0 bg-black/50 rounded-lg flex items-center justify-center">
+                          <Loader2 size={24} className="text-white animate-spin" />
+                        </div>
+                      )}
+                      <button
+                        onClick={removeReceiptImage}
+                        className="absolute top-2 right-2 p-1 bg-xtreme-red rounded-full text-white"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={startCamera}
+                        className="flex-1 flex items-center justify-center gap-2 px-3 py-3 bg-xtreme-blue/20 text-xtreme-blue border border-xtreme-blue/30 rounded-lg text-sm font-medium"
+                      >
+                        <Camera size={18} />
+                        Tirar Foto
+                      </button>
+                      <button
+                        onClick={() => fileInputRef.current?.click()}
+                        className="flex-1 flex items-center justify-center gap-2 px-3 py-3 bg-xtreme-cream/10 text-xtreme-cream/70 border border-xtreme-cream/20 rounded-lg text-sm font-medium"
+                      >
+                        <Image size={18} />
+                        Anexar
+                      </button>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleFileSelect}
+                        className="hidden"
+                      />
+                    </div>
+                  )}
+                </div>
+
                 <div className="mt-5 pt-4 border-t border-xtreme-orange/20">
                   <div className="flex justify-between items-center mb-4">
                     <span className="text-lg font-bold text-xtreme-cream">Total:</span>
@@ -423,6 +588,70 @@ export default function Orders() {
                   </div>
                 )}
 
+                {/* Payment Method Mobile */}
+                <div className="mt-3 p-3 bg-xtreme-black/30 rounded-lg border border-xtreme-cream/10">
+                  <p className="text-xs font-bold text-xtreme-cream mb-2">💳 Pagamento</p>
+                  <div className="grid grid-cols-4 gap-1">
+                    {paymentMethods.map(({ value, label, icon: Icon }) => (
+                      <button
+                        key={value}
+                        onClick={() => setPaymentMethod(value)}
+                        className={`flex flex-col items-center gap-1 px-2 py-2 rounded-lg text-xs font-medium transition-all ${
+                          paymentMethod === value
+                            ? 'bg-xtreme-orange text-xtreme-black'
+                            : 'bg-xtreme-black/50 text-xtreme-cream/70'
+                        }`}
+                      >
+                        <Icon size={14} />
+                        <span className="text-[10px]">{label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Receipt Image Mobile */}
+                <div className="mt-3 p-3 bg-xtreme-black/30 rounded-lg border border-xtreme-cream/10">
+                  <p className="text-xs font-bold text-xtreme-cream mb-2">📷 Comprovante</p>
+                  
+                  {receiptPreview || receiptImage ? (
+                    <div className="relative">
+                      <img 
+                        src={receiptPreview || receiptImage || ''} 
+                        alt="Comprovante" 
+                        className="w-full h-24 object-cover rounded-lg"
+                      />
+                      {uploadingReceipt && (
+                        <div className="absolute inset-0 bg-black/50 rounded-lg flex items-center justify-center">
+                          <Loader2 size={20} className="text-white animate-spin" />
+                        </div>
+                      )}
+                      <button
+                        onClick={removeReceiptImage}
+                        className="absolute top-1 right-1 p-1 bg-xtreme-red rounded-full text-white"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={startCamera}
+                        className="flex-1 flex items-center justify-center gap-1 px-2 py-2 bg-xtreme-blue/20 text-xtreme-blue border border-xtreme-blue/30 rounded-lg text-xs font-medium"
+                      >
+                        <Camera size={14} />
+                        Foto
+                      </button>
+                      <button
+                        onClick={() => fileInputRef.current?.click()}
+                        className="flex-1 flex items-center justify-center gap-1 px-2 py-2 bg-xtreme-cream/10 text-xtreme-cream/70 border border-xtreme-cream/20 rounded-lg text-xs font-medium"
+                      >
+                        <Image size={14} />
+                        Anexar
+                      </button>
+                    </div>
+                  )}
+                </div>
+
                 <div className="mt-4 pt-4 border-t border-xtreme-orange/20">
                   <div className="flex justify-between items-center mb-4">
                     <span className="text-base font-bold text-xtreme-cream">Total:</span>
@@ -440,6 +669,34 @@ export default function Orders() {
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Camera Modal */}
+      {showCamera && (
+        <div className="fixed inset-0 z-[60] bg-black flex flex-col">
+          <div className="flex items-center justify-between p-4 bg-xtreme-black">
+            <h3 className="text-xtreme-cream font-bold">📷 Tirar Foto do Comprovante</h3>
+            <button onClick={stopCamera} className="p-2 text-xtreme-cream">
+              <X size={24} />
+            </button>
+          </div>
+          <div className="flex-1 relative">
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              className="w-full h-full object-cover"
+            />
+          </div>
+          <div className="p-6 bg-xtreme-black flex justify-center">
+            <button
+              onClick={capturePhoto}
+              className="w-20 h-20 rounded-full bg-white border-4 border-xtreme-orange flex items-center justify-center"
+            >
+              <div className="w-16 h-16 rounded-full bg-xtreme-orange" />
+            </button>
           </div>
         </div>
       )}

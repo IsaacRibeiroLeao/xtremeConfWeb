@@ -22,6 +22,8 @@ export interface OrderItem {
   givesBingoEntry: boolean
 }
 
+export type PaymentMethod = 'cash' | 'credit' | 'debit' | 'pix'
+
 export interface Order {
   id: string
   items: OrderItem[]
@@ -30,6 +32,8 @@ export interface Order {
   bingoEntries: string[]
   createdAt: Date
   status: 'pending' | 'completed' | 'cancelled'
+  paymentMethod?: PaymentMethod
+  receiptImage?: string
 }
 
 export interface BingoParticipant {

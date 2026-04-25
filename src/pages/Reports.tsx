@@ -1,11 +1,22 @@
-import { FileSpreadsheet, Download, TrendingUp, DollarSign, ShoppingBag } from 'lucide-react'
+import { useState } from 'react'
+import { FileSpreadsheet, Download, TrendingUp, DollarSign, ShoppingBag, Receipt, X, CreditCard, Banknote, Smartphone, Image } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { useOrders, useDishes, useCategories } from '../hooks/useSupabase'
+import type { Order, PaymentMethod } from '../types'
+
+const paymentLabels: Record<PaymentMethod, { label: string; icon: typeof Banknote }> = {
+  cash: { label: 'Dinheiro', icon: Banknote },
+  pix: { label: 'PIX', icon: Smartphone },
+  credit: { label: 'Crédito', icon: CreditCard },
+  debit: { label: 'Débito', icon: CreditCard },
+}
 
 export default function Reports() {
   const { orders } = useOrders()
   const { dishes } = useDishes()
   const { categories } = useCategories()
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
+  const [showReceiptModal, setShowReceiptModal] = useState(false)
 
   const completedOrders = orders.filter(o => o.status === 'completed')
   
@@ -230,39 +241,174 @@ export default function Reports() {
         <div className="p-4 bg-gradient-to-r from-xtreme-red to-xtreme-red/50">
           <h3 className="font-display text-lg text-xtreme-cream tracking-wide">ÚLTIMOS PEDIDOS</h3>
         </div>
-        <div className="max-h-80 overflow-y-auto">
+        <div className="max-h-96 overflow-y-auto">
           {completedOrders.length === 0 ? (
             <p className="text-xtreme-cream/40 text-center py-8">Nenhum pedido registrado</p>
           ) : (
-            <table className="w-full">
-              <thead className="bg-xtreme-black/50 sticky top-0">
-                <tr>
-                  <th className="text-left px-4 py-3 text-sm font-medium text-xtreme-cream/60">Hora</th>
-                  <th className="text-left px-4 py-3 text-sm font-medium text-xtreme-cream/60">Cliente</th>
-                  <th className="text-left px-4 py-3 text-sm font-medium text-xtreme-cream/60">Itens</th>
-                  <th className="text-right px-4 py-3 text-sm font-medium text-xtreme-cream/60">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {completedOrders.slice(0, 20).map(order => (
-                  <tr key={order.id} className="border-t border-xtreme-cream/10">
-                    <td className="px-4 py-3 text-sm text-xtreme-cream/80">
-                      {order.createdAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                    </td>
-                    <td className="px-4 py-3 text-xtreme-cream">{order.customerName || '-'}</td>
-                    <td className="px-4 py-3 text-sm text-xtreme-cream/60">
-                      {order.items.map(i => `${i.quantity}x ${i.dishName}`).join(', ')}
-                    </td>
-                    <td className="px-4 py-3 text-right font-bold text-xtreme-yellow">
-                      R$ {order.total.toFixed(2)}
-                    </td>
+            <>
+              {/* Desktop Table */}
+              <table className="w-full hidden md:table">
+                <thead className="bg-xtreme-black/50 sticky top-0">
+                  <tr>
+                    <th className="text-left px-4 py-3 text-sm font-medium text-xtreme-cream/60">Hora</th>
+                    <th className="text-left px-4 py-3 text-sm font-medium text-xtreme-cream/60">Cliente</th>
+                    <th className="text-left px-4 py-3 text-sm font-medium text-xtreme-cream/60">Itens</th>
+                    <th className="text-center px-4 py-3 text-sm font-medium text-xtreme-cream/60">Pagamento</th>
+                    <th className="text-center px-4 py-3 text-sm font-medium text-xtreme-cream/60">Comprov.</th>
+                    <th className="text-right px-4 py-3 text-sm font-medium text-xtreme-cream/60">Total</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {completedOrders.slice(0, 20).map(order => {
+                    const payment = order.paymentMethod ? paymentLabels[order.paymentMethod] : null
+                    const PaymentIcon = payment?.icon
+                    return (
+                      <tr key={order.id} className="border-t border-xtreme-cream/10 hover:bg-xtreme-cream/5">
+                        <td className="px-4 py-3 text-sm text-xtreme-cream/80">
+                          {order.createdAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                        </td>
+                        <td className="px-4 py-3 text-xtreme-cream">{order.customerName || '-'}</td>
+                        <td className="px-4 py-3 text-sm text-xtreme-cream/60 max-w-48 truncate">
+                          {order.items.map(i => `${i.quantity}x ${i.dishName}`).join(', ')}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          {payment && PaymentIcon ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-xtreme-blue/20 text-xtreme-blue rounded text-xs">
+                              <PaymentIcon size={12} />
+                              {payment.label}
+                            </span>
+                          ) : (
+                            <span className="text-xtreme-cream/40 text-xs">-</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          {order.receiptImage ? (
+                            <button
+                              onClick={() => { setSelectedOrder(order); setShowReceiptModal(true) }}
+                              className="inline-flex items-center gap-1 px-2 py-1 bg-green-500/20 text-green-400 rounded text-xs hover:bg-green-500/30"
+                            >
+                              <Receipt size={12} />
+                              Ver
+                            </button>
+                          ) : (
+                            <span className="text-xtreme-cream/40 text-xs">-</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-right font-bold text-xtreme-yellow">
+                          R$ {order.total.toFixed(2)}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+
+              {/* Mobile Cards */}
+              <div className="md:hidden space-y-2 p-2">
+                {completedOrders.slice(0, 20).map(order => {
+                  const payment = order.paymentMethod ? paymentLabels[order.paymentMethod] : null
+                  const PaymentIcon = payment?.icon
+                  return (
+                    <div 
+                      key={order.id} 
+                      className="bg-xtreme-black/40 rounded-xl p-3 border border-xtreme-cream/10"
+                      onClick={() => { if (order.receiptImage) { setSelectedOrder(order); setShowReceiptModal(true) }}}
+                    >
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <p className="text-xtreme-cream font-medium">{order.customerName || 'Cliente'}</p>
+                          <p className="text-xs text-xtreme-cream/50">
+                            {order.createdAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                        </div>
+                        <p className="text-lg font-bold text-xtreme-yellow">R$ {order.total.toFixed(2)}</p>
+                      </div>
+                      
+                      <p className="text-xs text-xtreme-cream/60 mb-2 line-clamp-1">
+                        {order.items.map(i => `${i.quantity}x ${i.dishName}`).join(', ')}
+                      </p>
+                      
+                      <div className="flex items-center gap-2">
+                        {payment && PaymentIcon && (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 bg-xtreme-blue/20 text-xtreme-blue rounded text-xs">
+                            <PaymentIcon size={12} />
+                            {payment.label}
+                          </span>
+                        )}
+                        {order.receiptImage && (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-500/20 text-green-400 rounded text-xs">
+                            <Image size={12} />
+                            Comprovante
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </>
           )}
         </div>
       </div>
+
+      {/* Receipt Modal */}
+      {showReceiptModal && selectedOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-gradient-to-br from-xtreme-black to-xtreme-blue/50 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-hidden border border-xtreme-orange/30">
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b border-xtreme-cream/10">
+              <div>
+                <h3 className="font-display text-lg text-gradient">COMPROVANTE</h3>
+                <p className="text-xs text-xtreme-cream/50">
+                  {selectedOrder.createdAt.toLocaleString('pt-BR')}
+                </p>
+              </div>
+              <button 
+                onClick={() => { setShowReceiptModal(false); setSelectedOrder(null) }}
+                className="p-2 text-xtreme-cream/60 hover:text-xtreme-red"
+              >
+                <X size={24} />
+              </button>
+            </div>
+            
+            {/* Order Info */}
+            <div className="p-4 border-b border-xtreme-cream/10">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-xtreme-cream/60 text-sm">Cliente:</span>
+                <span className="text-xtreme-cream font-medium">{selectedOrder.customerName || '-'}</span>
+              </div>
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-xtreme-cream/60 text-sm">Total:</span>
+                <span className="text-xtreme-yellow font-bold text-lg">R$ {selectedOrder.total.toFixed(2)}</span>
+              </div>
+              {selectedOrder.paymentMethod && (
+                <div className="flex justify-between items-center">
+                  <span className="text-xtreme-cream/60 text-sm">Pagamento:</span>
+                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-xtreme-blue/20 text-xtreme-blue rounded text-sm">
+                    {(() => {
+                      const p = paymentLabels[selectedOrder.paymentMethod!]
+                      const Icon = p.icon
+                      return <><Icon size={14} /> {p.label}</>
+                    })()}
+                  </span>
+                </div>
+              )}
+            </div>
+            
+            {/* Receipt Image */}
+            <div className="p-4">
+              <p className="text-sm text-xtreme-cream/60 mb-3">📷 Imagem do Comprovante:</p>
+              {selectedOrder.receiptImage && (
+                <img 
+                  src={selectedOrder.receiptImage} 
+                  alt="Comprovante" 
+                  className="w-full rounded-lg border border-xtreme-cream/20"
+                />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
