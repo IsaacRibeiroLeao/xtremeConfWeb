@@ -1,0 +1,86 @@
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background: linear-gradient(135deg, #1A0A0A 0%, #2E3A8C 100%);
+  min-height: 100vh;
+}
+
+.font-display {
+  font-family: 'Bebas Neue', sans-serif;
+}
+
+.text-gradient {
+  background: linear-gradient(180deg, #F9D648 0%, #F28C28 50%, #E63928 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.bg-fire {
+  background: linear-gradient(180deg, #F9D648 0%, #F28C28 40%, #E63928 100%);
+}
+
+.bg-explosion {
+  background: radial-gradient(ellipse at center, #F9D648 0%, #F28C28 30%, #E63928 60%, #1A0A0A 100%);
+}
+
+.card-glow {
+  box-shadow: 0 0 20px rgba(230, 57, 40, 0.3), 0 0 40px rgba(242, 140, 40, 0.1);
+}
+
+.btn-fire {
+  background: linear-gradient(180deg, #F9D648 0%, #F28C28 50%, #E63928 100%);
+  transition: all 0.3s ease;
+}
+
+.btn-fire:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 20px rgba(230, 57, 40, 0.5);
+}
+
+.animate-pulse-fire {
+  animation: pulse-fire 2s ease-in-out infinite;
+}
+
+@keyframes pulse-fire {
+  0%, 100% { box-shadow: 0 0 10px rgba(230, 57, 40, 0.5); }
+  50% { box-shadow: 0 0 30px rgba(242, 140, 40, 0.8), 0 0 50px rgba(230, 57, 40, 0.5); }
+}
+
+/* Mobile optimizations */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+.line-clamp-1 {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Touch feedback */
+@media (hover: none) {
+  .active\:scale-90:active {
+    transform: scale(0.9);
+  }
+  .active\:scale-95:active {
+    transform: scale(0.95);
+  }
+  .active\:scale-\[0\.98\]:active {
+    transform: scale(0.98);
+  }
+}
